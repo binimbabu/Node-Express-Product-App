@@ -3036,3 +3036,168 @@ views/shop/orders.ejs
         Nothing there
     </main>
     <%- include('../includes/end.ejs') %>
+
+
+
+
+
+
+Add Product id
+
+
+In models/product.js we need to generate unique id hence we give this '    this.id = Math.random().toString();' in 'save()' method
+
+models/product.js
+
+  save() {
+    this.id = Math.random().toString();
+    getProductFromFile((products) => {
+      products.push(this);
+      fs.writeFile(p, JSON.stringify(products), (err) => {});
+    });
+  }
+
+
+In 'views/shop/product-list.ejs' we add a details button for a particular product for a particular id. Like shown below
+
+
+views/shop/product-list.ejs
+
+
+<div class="card__actions">
+   <a href="/products/<%= product.id %>" class="btn">Details</a>
+   <form action="/add-to-cart" method="POST">
+    <button class="btn">Add to Cart</button>
+    </form>
+</div>
+
+
+
+In the routes folder from the url we will extract the id and that id can be passed to controller for further processing
+
+
+
+
+Extracting Dynamic Params
+
+
+In 'routes/shop.js' we add the following route path
+
+router.get("/products/:productId", shopController.getProduct);
+
+
+In controllers/shop.js add new controller and extract 'productId' with this statement 'const prodId = req.params.productId' shown below
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  res.redirect('/')
+};
+
+
+
+
+Loading Product detail data
+
+
+In models/product.js we add a method 'findById' shown below where 'cb' is callback
+
+static findById(id, cb) {
+    getProductFromFile((products) => {
+      const product = products.find((p) => p.id === id);
+      cb(product);
+    });
+  }
+
+Edit the controllers/shop.js as below
+
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findById(prodId, (product) => console.log(product));
+  res.redirect("/");
+};
+
+
+
+
+
+product-detail.ejs
+
+<%- include('../includes/head.ejs') %>
+    </head>
+
+    <body>
+        <%- include('../includes/navigation.ejs') %>
+        <main class="centered">
+           <h1><%= product.title %></h1>
+           <hr>
+           <div>
+            <img src="<%= product.imageUrl %>" alt="<%= product.title %>" />
+           </div>
+           <h2><%= product.price %></h2>
+           <p>
+            <%= product.description %>
+           </p>
+           <form action="/cart" method="post">
+            <button type="submit" class="btn">Add to Cart</button>
+           </form>
+        </main>
+        <%- include('../includes/end.ejs') %>
+
+
+
+In 'controllers/shop.js' change the code for 'getProduct' controller
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findById(prodId, (product) => {
+    res.render("shop/product-detail", {
+      product: product,
+      path: "/products",
+      pageTitle: product.title,
+    });
+  });
+};
+
+
+
+
+Passing Data with POST requests
+
+For method Post we add all the items in html into body
+
+In 'product-list.ejs' we add the following 'input' tag to div of class 'card__actions', to pass 'product.id'
+
+
+<div class="card__actions">
+  <a href="/products/<%= product.id %>" class="btn">Details</a>
+  <form action="/add-to-cart" method="POST">
+    <button class="btn">Add to Cart</button>
+    <input type="hidden" name="productId" value="<%= product.id %>" />
+  </form>
+</div>
+
+
+
+In controllers/shop.js add new controller, since 'name' given in input tag as above is 'productId' hence we give 'productId'  as shown below
+
+
+exports.postCart = (req, res, next) => {
+  const prodId = res.body.productId;
+  res.redirect('/cart')
+}; 
+
+
+
+In routes/shop.js place the following code
+
+
+router.post("/cart", shopController.getCart);
+
+
+
+
+
+
+
+    
