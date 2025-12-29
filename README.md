@@ -3198,6 +3198,454 @@ router.post("/cart", shopController.getCart);
 
 
 
+create 'cart.js' in 'models' folder
+
+
+
+models/cart.js
+
+
+
+const fs = require("fs");
+const path = require("path");
+
+const p = path.join(
+  path.dirname(require.main.filename),
+  "data",
+  "cart.json"
+);
+
+module.exports = class Cart {
+  static addProduct(id, productPrice) {
+    fs.readFile(p, (err, fileContent) => {
+      let cart = { products: [], totalPrice: 0 };
+
+      if (!err) {
+        try {
+          cart = JSON.parse(fileContent);
+        } catch (e) {
+          console.error("Invalid cart.json, resetting cart.");
+        }
+      }
+
+      // Find existing product
+      const existingProductIndex = cart.products.findIndex(prod => prod.id === id);
+      const existingProduct = cart.products[existingProductIndex];
+      let updatedProduct;
+
+      if (existingProduct) {
+        updatedProduct = { ...existingProduct, qty: existingProduct.qty + 1 };
+        cart.products[existingProductIndex] = updatedProduct;
+      } else {
+        updatedProduct = { id: id, qty: 1 };
+        cart.products.push(updatedProduct);
+      }
+
+      // Add to total
+      cart.totalPrice = cart.totalPrice + +productPrice;
+
+      // Write updated cart
+      fs.writeFile(p, JSON.stringify(cart, null, 2), err => {
+        if (err) {
+          console.error("Error writing to cart.json:", err);
+        } else {
+          console.log("Cart updated successfully.");
+        }
+      });
+    });
+  }
+};
+
+
+
+controllers/shop.js, 'postCart' edited as follows
+
+exports.postCart = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.findById(prodId, (product) => {
+    if (!product) {
+      console.log("Product not found:", prodId);
+      return res.redirect("/cart");
+    }
+    Cart.addProduct(prodId, product.price);
+    res.redirect("/cart");
+  });
+};
+
+
+
+
+
+Using QueryParam
+
+Query parameters in the url are followed by '?' then separated by '&' each query paramters are a comination of key value pair where key and value separated by '='
+
+eg:
+
+http://localhost:3000/edit-product/123456?edit=true&title=editProduct
+
+
+where 'edit=true' and 'title=editProduct' are query parameters 
+
+Delete 'add-product.ejs' and make the following change in controllers/admin.js for 'getAddProduct' and add extra controller 'getEditProduct' 
+
+
+controllers/admin.js
+
+
+exports.getAddProduct = (req, res, next) => {
+  res.render("admin/edit-product", {
+    pageTitle: "Add Product",
+    path: "/admin/add-product",
+    editing: false,
+  });
+  // res.sendFile(path.join(rootDir, "views", "add-product.html"));
+};
+
+
+exports.getEditProduct = (req, res, next) => {
+  const editMode = req.query.edit;
+  if (!editMode) {
+    return res.redirect("/");
+  }
+  const prodId = req.params.productId;
+  Product.findById(prodId, (product) => {
+  if(!product){
+      return res.redirect('/')
+    }
+
+    res.render("admin/edit-product", {
+      path: "admin/edit-product",
+      pageTitle: "Edit Product",
+      editing: editMode,
+      product: product,
+    });
+  });
+};
+
+
+
+
+For '  const editMode = req.query.edit;' inside 'getEditProduct' above code here 'edit' will be the query parameter key in the url and the value passed to 'edit' will be given to the variable 'editMode'. But the value we get in 'editMode' is a string. 'productId' can be extracted from url paramters then extracting the product for the corresponding 'productId' and pass as 'product' to 'product' key
+
+
+In routes/admin.js add the new router
+
+
+router.get("/edit-product/:productId", adminController.getEditProduct);
+
+
+Prepopulating title of product in views/admin/edit-product as follows
+
+
+<div class="form-control">
+                <label for="title">Title</label>
+                <input type="text" name="title" id="title" value="<% if(editing) { %><%= product.title %><% } %>">
+            </div>
+
+
+
+
+Entire 'views/admin/edit-product'
+
+
+
+<%- include('../includes/head.ejs') %>
+    <link rel="stylesheet" href="/css/forms.css">
+    <link rel="stylesheet" href="/css/product.css">
+</head>
+
+<body>
+   <%- include('../includes/navigation.ejs') %>
+
+    <main>
+        <form class="product-form" action="/admin/<% if(editing) { %>edit-product<% } else { %>add-product<% } %>" method="POST">
+            <div class="form-control">
+                <label for="title">Title</label>
+                <input type="text" name="title" id="title" value="<% if(editing) { %><%= product.title %><% } %>">
+            </div>
+            <div class="form-control">
+                <label for="imageUrl">Image URL</label>
+                <input type="text" name="imageUrl" id="imageUrl" value="<% if(editing) { %><%= product.imageUrl %><% } %>">
+            </div>
+            <div class="form-control">
+                <label for="price">Price</label>
+                <input type="number" name="price" id="price" step="0.01" value="<% if(editing) { %><%= product.price %><% } %>">
+            </div>
+            <div class="form-control">
+                <label for="description">Description</label>
+                <textarea name="description" id="description" rows="5" ><% if(editing) { %><%= product.description %><% } %></textarea>
+            </div>
+
+            <button class="btn" type="submit"><% if(editing) { %>Update Product<% } else { %>Add Product<% } %></button>
+        </form>
+    </main>
+<%- include('../includes/end.ejs') %>
+
+
+
+
+
+
+In views/admin/product.ejs
+
+
+ <div class="card__actions">
+  <a href="/admin/edit-product/<%= product.id %>?edit=true" class="btn">Edit</a>
+  <form action="/admin/delete-product" method="POST">
+    <button class="btn" type="submit">Delete</button>
+  </form>
+ </div>
+
+
+
+
+
+Editing the Product data
+
+
+
+In routes/admin.js add the following router for post request
+
+
+router.post("edit-product");
+
+
+In controllers/admin.js
+
+
+
+
+
+In models/product.js editing the save method as follows
+
+
+ save() {
+    getProductFromFile((products) => {
+      if (this.id) {
+        const existingProductIndex = products.findIndex(
+          (prod) => prod.id === this.id
+        );
+        const updatedProduct = [...products];
+        updatedProduct[existingProductIndex] = this;
+        fs.writeFile(p, JSON.stringify(updatedProducts), (err) => {});
+      } else {
+        this.id = Math.random().toString();
+        products.push(this);
+        fs.writeFile(p, JSON.stringify(products), (err) => {});
+      }
+    });
+  }
+
+
+
+we add a 'hidden' input in 'edit-product.ejs' to get the product id in the post body of he controller as follows
+
+
+ <% if (editing) { %>
+             <input type="hidden" value="<%= product.id %>" name="productId" />
+            <% } %>
+
+
+
+Then add 'postEditProduct' controller in 'controllers/admin.js'. Since, its a POST request we get 'title', 'imageUrl', 'price' and 'description' from body then we call the constructor of Product to update the updated product values and then save using 'save()' method shown as follows
+
+exports.postEditProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  const updatedTitle = req.body.title;
+  const updatedImageUrl = req.body.imageUrl;
+  const updatedPrice = req.body.price;
+  const updatedDescription = req.body.description;
+  const updatedProduct = new Product(
+    prodId,
+    updatedTitle,
+    updatedImageUrl,
+    updatedDescription,
+    updatedPrice
+    
+  );
+  updatedProduct.save();
+  res.redirect("/admin/products");
+};
+
+
+
+In routes/admin.js add the following
+
+
+router.post("edit-product", adminController.postEditProduct);
+
+
+
+To delete the product
+
+
+In views/admin/product.ejs edit the code as follows
+
+
+<form action="/admin/delete-product" method="POST">
+  <input type="hidden" value="<%= product.id %>" name="productId" />
+  <button class="btn" type="submit">Delete</button>
+</form>
+
+
+In routes/admin.js
+
+
+router.post('/delete-product', adminController.postDeleteProduct)
+
+
+In models/product.js
+
+
+static deletById(id) {
+    getProductFromFile((products) => {
+      const updatedProducts = products.filter((prod) => prod.id !== id);
+      fs.writeFile(p, JSON.stringify(updatedProducts), (err) => {});
+    });
+  }
+
+
+
+
+in modes/cart.js
+
+static deleteProduct(id, productPrice) {
+    fs.readFile(p, (err, fileContent) => {
+      if (err) return;
+
+      const updatedCart = { ...JSON.parse(fileContent) };
+      const product = updatedCart.products.find((prod) => prod.id === id);
+      const productQty = product.qty;
+      updatedCart.products = updatedCart.products.filter(
+        (prod) => prod.id !== id
+      );
+      updatedCart.totalPrice =
+        updatedCart.totalPrice - productPrice * productQty;
+
+      fs.writeFile(p, JSON.stringify(updatedCart, null, 2), (err) => {
+        if (err) {
+          console.error("Error writing to cart.json:", err);
+        } else {
+          console.log("Cart updated successfully.");
+        }
+      });
+    });
+  }
+
+
+
+In controllers/admin.js
+
+
+
+exports.postDeleteProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.deletById(prodId);
+  res.redirect('/admin/products')
+};
+
+
+
+
+Display Cart Items
+
+
+models/cart.js
+
+ static getCart(cb) {
+    fs.readFile(p, (err, fileContent) => {
+      const cart = JSON.parse(fileContent);
+      if (err) {
+        cb(null);
+      } else {
+        cb(cart);
+      }
+    });
+  }
+
+
+
+
+conrollers/shop.js
+
+
+exports.getCart = (req, res, next) => {
+  Cart.getCart((cart) => {
+    Product.fetchAll((products) => {
+      const cartProducts = [];
+      for (product of products) {
+        const cartProductdata = cart.products.find(
+          (prod) => prod.id === product.id
+        );
+        if (cart.products.find((prod) => prod.id === product.id)) {
+          cartProducts.push({ productData: product, qty: cartProductdata.qty });
+        }
+      }
+      res.render("shop/cart", {
+        path: "/cart",
+        pageTitle: "Your Cart",
+        products: cartProducts,
+      });
+    });
+  });
+};
+
+
+
+
+
+
+views/shop/cart.ejs
+
+
+
+<%- include('../includes/head.ejs') %>
+    </head>
+
+    <body>
+        <%- include('../includes/navigation.ejs') %>
+        <main>
+            <% if(products.length > 0) { %>
+                <ul>
+                    <% products.forEach(p => { %>
+                      <li>
+                        <p>
+                          <%= p.productData.title %> (<%= p.qty %>)
+                        </p>
+                        <form action="/cart-delete-item" method="post">
+                           <input type="hidden" name="productId" value="<%= p.productData.id %>" />
+                         <button class="btn" type="submit">Delete</button>
+                        </form>
+                       </li>
+                    <% }); %>
+                </ul>
+            <% } else { %>
+                <h1>No Products in Cart</h1>
+            <% } %>
+        </main>
+        <%- include('../includes/end.ejs') %>
+
+
+
+
+
+In routes/shop.js
+
+router.post("/cart-delete-item", shopController.postCartDeleteProduct);
+
+
+In controllers/shop.js
+
+exports.postCartDeleteProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.findById(prodId, (product) => {
+    Cart.deleteProduct(prodId, product.price);
+    res.redirect("/cart");
+  });
+};
+
+
 
 
     
