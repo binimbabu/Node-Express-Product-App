@@ -3648,4 +3648,1089 @@ exports.postCartDeleteProduct = (req, res, next) => {
 
 
 
+
+SQL
+
+
+
+SQL vs NoSQL
+
+
+Goal is to store data and make it easily accessible
+Databases are of 2 types SQL Databases (eg: MySQL) and NoSQL database (eg: MongoDB)
+
+SQL database:  SQL database thinks in so called tables. Eg: Users, Products and Orders tables. And each table consist of fields or columns (eg: user table can have by having an ID, an email, a name and a products table can have id, title, price, description). We fill in data for these fields so called records, which data in table denotes to rows in table. QL database allows to relate different tables, for example an order table fields could be described as a connection of user and a product because an user might order couple of different products and a product ordered by different users.
+Core SQL database characteristic
+1. Have a strong data schema so that each table clearly define how the data in there should look like, which fields do we have, which type of data does in each fields store (like string, Boolean, number etc). All data in the table has to fit the schema of table.
+
+2. Relations between our data. (relate different tables with three important kinds of relations : one to one, one to many or many to many. Two tables in which each record fits one other record, a record might fit multiple other records or multiple records in table A can fit multiple record in table B . Tables are connected 
+
+
+SQL Queries
+
+Eg:
+
+SELECT * FROM users WHERE age > 28
+
+
+Here 'SELECT', 'FROM', 'WHERE' are SQL keywords.
+'*', 'users', 'age > 28' are parameters or data
+
+
+
+
+
+
+NoSQL
+
+NoSQL uses different query languages but instead of having schemas and relations, NoSQL has other focuses. In NoSQL there is a database. Lets consider an example : where the database name is 'Shop' . Tables in NoSQL is called as collections ( collections in example called as 'Users', 'Orders' ). In collections we dont find records instead we call them documents (looks like { name: 'max', age: 29 } ). We can store multiple documents with different structures in the same collection (for example in 'Users' collection we can store one document value say { name: 'max', age: 29 } and second document as { name: 'max' } where in the second document doesn't have 'age' this is fine in collections to hold different structures in same collection, which means we not dont have to always have exactly same fields available for the data to be stored in database that is fine in NoSQL). In NoSQL we can store documents which is equal but where some fields might differ. In NoSQL we need not have to join different tables to get data instead for example to read data from 'Orders' collection, we get all data to be displayed in 'Orders' page without having to reach to other collections, thus making it super fast and this is one of the huge advantage of NoSQL. In NoSQL don't have data schema.
+To scale database to keep up growing application we have 2 types of scaling horizontal and vertical scaling. 
+In horizontal scaling we add more servers and this can be done infinitely ( we can buy new servers in a cloud provider or in data center and connect them to the database and split data across all these servers, which means we need some process that runs queries on all of them and merges them together).
+In vertical scaling we make existing sever stronger by adding more CPU or memory, but we cant fit infinitely CPU power into a single machine.
+
+
+
+SQL vs NoSQL
+
+SQL - In SQL we have schemas and also have relations ( like joining the tables -one to one relation for example), data distributed mainly across many tables which are connected through relations. Horizontal scaling is impossible for how SQL works (because we can add more server but running all them on one shared data cloud or one shared database is difficult. But vertical scaling in SQL is possible it make server stronger but adding more server is hard and impossible. SQL database if it does very complex joins between related tables can reach limits, hence not a best choice. 
+
+NoSQL is schema less and has few relations it at all, data is typically not distributed across multiple collections but instead work with merged or nested documents in an existing document. With NoSQL horizontal scaling is easier since there are fewer connections in NoSQL. For mass read and write request NoSQL is having good performance with high throughput. 
+
+
+Configure MySQL in node.js app
+
+
+ npm i --save mysql2
+
+
+
+In 'util' folder create a file 'database.js'.
+
+
+
+If we have a query to run and then we have a new connection from that pool which manages multiple connections, so we can run multiple queries simultaneously because each query needs its own connection and once the query is done the connection will be handed back into the pool thus making it available again for new query and the pool will be finished when the application shuts down (pool describes the code statement shown below )
+
+
+util/database.js
+
+const mysql = require("mysql2");
+
+const pool = mysql.createPool({
+  host: "localhost",
+  user: "root",
+  database: "node-complete",
+  password: "root",
+});
+module.exports = pool.promise();
+
+
+
+In app.js add these 2 extra lines just for example not mandatory, since we execute promise above 'pool.promise()' and hence give promise from this 'db.execute("SELECT * FROM products")' with 'then' and 'catch' in app.js. The 'then' block will then get anonymous function to execute.
+
+
+const db = require("./util/database");
+db.execute("SELECT * FROM products")
+  .then(() => {})
+  .catch((err) => {
+    console.log(err);
+  });
+
+
+
+
+Changing old models/product.js from below
+
+
+
+const fs = require("fs");
+const path = require("path");
+const Cart = require("./cart");
+const p = path.join(
+  path.dirname(process.mainModule.filename),
+  "data",
+  "products.json"
+);
+
+const getProductFromFile = (callBack) => {
+  fs.readFile(p, (err, fileContent) => {
+    if (err) {
+      // File not found or cannot be read — return an empty array
+      return callBack([]);
+    }
+
+    if (!fileContent || fileContent.length === 0) {
+      // File is empty — return empty list instead of crashing
+      return callBack([]);
+    }
+
+    try {
+      const data = JSON.parse(fileContent);
+      callBack(data);
+    } catch (e) {
+      console.error("⚠️ Invalid JSON in products.json. Resetting file...");
+      callBack([]);
+    }
+  });
+};
+
+const products = [];
+module.exports = class Product {
+  constructor(id, title, imageUrl, description, price) {
+    this.id = id;
+    this.title = title;
+    this.imageUrl = imageUrl;
+    this.description = description;
+    this.price = price;
+  }
+  save() {
+    getProductFromFile((products) => {
+      if (this.id) {
+        const existingProductIndex = products.findIndex(
+          (prod) => prod.id === this.id
+        );
+        const updatedProduct = [...products];
+        updatedProduct[existingProductIndex] = this;
+        fs.writeFile(p, JSON.stringify(updatedProduct), (err) => {});
+      } else {
+        this.id = Math.random().toString();
+        products.push(this);
+        fs.writeFile(p, JSON.stringify(products), (err) => {});
+      }
+    });
+  }
+  static fetchAll(callBack) {
+    getProductFromFile(callBack);
+  }
+
+  static findById(id, cb) {
+    getProductFromFile((products) => {
+      const product = products.find((p) => p.id === id);
+      cb(product);
+    });
+  }
+
+  static deletById(id) {
+    getProductFromFile((products) => {
+      const product = products.find((prod) => prod.id === id);
+      const updatedProducts = products.filter((prod) => prod.id !== id);
+      fs.writeFile(p, JSON.stringify(updatedProducts), (err) => {
+        if (!err) {
+          Cart.deleteProduct(id, product.price);
+        }
+      });
+    });
+  }
+};
+
+
+Using SQL queries in models/product.js , edit in models/product.js as following
+
+
+
+save() {
+    return db.execute(
+      "INSERT INTO products (title, price, imageUrl, description) VALUES (?, ?, ?, ?)",
+      [this.title, this.price, this.imageUrl, this.description]
+    );
+  }
+
+ static fetchAll() {
+    return db.execute("SELECT * FROM products");
+  }
+
+  static findById(id) {
+    return db.execute("SELECT * FROM products WHERE products.id = ?", [id]);
+  }
+
+
+Here in 'save' method 'title, price, imageUrl, description' denotes the same column used while creating 'products' table. Inorder to overcome sql injection we use '?' to the values we pass. The order of value we pass depends on ' [this.title, this.price, this.imageUrl, this.description]'
+
+In controllers/shop.js
+
+
+const Product = require("../models/product");
+const Cart = require("../models/cart");
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findById(prodId)
+    .then(([product]) => {
+      res.render("shop/product-detail", {
+        product: product[0],
+        path: "/products",
+        pageTitle: product.title,
+      });
+    })
+    .catch();
+};
+
+exports.getProducts = (req, res, next) => {
+  Product.fetchAll()
+    .then(([rows, fieldData]) => {
+      res.render("shop/product-list", {
+        prods: rows,
+        pageTitle: "All Prodcuts",
+        path: "/products",
+      });
+    })
+    .catch();
+};
+exports.getIndex = (req, res, next) => {
+  Product.fetchAll().then(([rows, fieldData]) => {
+    res.render("shop/index", {
+      prods: rows,
+      pageTitle: "Shop",
+      path: "/",
+    });
+  });
+};
+
+
+
+controllers/admin.js
+
+
+exports.postAddProduct = (req, res, next) => {
+  const title = req.body.title;
+  const imageUrl = req.body.imageUrl;
+  const price = req.body.price;
+  const description = req.body.description;
+  const product = new Product(null, title, imageUrl, description, price);
+  product
+    .save()
+    .then(() => {
+      res.redirect("/");
+    })
+    .catch();
+};
+
+
+
+
+
+
+Sequelize
+
+Sequelize is a third party package. Its an object relational mapping library ( It writes sql and maps to javascript objects with convenience methods which can be called to execute behind SQL code, so we need not have to write SQL code on our own).
+For example A user with a name, age, email and password this is mapped to a database table by sequelize, so automatically it creates a table for us even it automatically sets up relations and tables. When we create a new user we simply call a method on that user javascript object and sequelize executes the SQL query or SQL command that's required.
+Sequelize offers models to work with our database and define which data makes up a model and therefore which data will be saved in database. Then we instantiate these models, so in the class can execute the constructor functions or use utility methods to create say a new user object based on that model.
+
+
+npm install --save sequelize
+
+Steps of Sequelize
+1. Create a model with sequelize and connect with database.
+
+
+
+
+util/database.js
+
+
+const Sequelize = require("sequelize");
+
+const sequelize = new Sequelize("node-complete", "root", "root", {
+  dialect: "mysql",
+  host: "localhost",
+});
+
+module.exports = sequelize;
+
+where 'sequelize' is an instance of 'Sequelize' and node-complete denotes database, root is the user, root is the password, we are using MySQL as dialect and host as localhost.
+
+
+
+models/product.js
+
+
+const Sequelize = require("sequelize");
+
+const sequelize = require("../util/database");
+
+const Product = sequelize.define("product", {
+  id: {
+    type: Sequelize.INTEGER,
+    autoIncrement: true,
+    allowNull: false,
+    primaryKey: true,
+  },
+  title: {
+    type: Sequelize.STRING,
+  },
+  price: {
+    type: Sequelize.DOUBLE,
+    allowNull: false,
+  },
+  imageUrl: {
+    type: Sequelize.STRING,
+    allowNull: false,
+  },
+  description: {
+    type: Sequelize.STRING,
+    allowNull: false,
+  },
+});
+
+module.exports = Product;
+
+
+
+
+
+
+Here we get the pool of connection ( const sequelize = require("../util/database"); ) 
+
+const Product = sequelize.define("product", {
+  id: {
+    type: Sequelize.INTEGER,
+    autoIncrement: true,
+    allowNull: false,
+    primaryKey: true,
+  },
+  title: {
+    type: Sequelize.STRING,
+  },
+  price: {
+    type: Sequelize.DOUBLE,
+    allowNull: false,
+  },
+  imageUrl: {
+    type: Sequelize.STRING,
+    allowNull: false,
+  },
+  description: {
+    type: Sequelize.STRING,
+    allowNull: false
+  },
+});
+
+'product' is the model name in the define first argument, second argument defines the structure of our model and therefore also the automatically created database table (will be a javascript object and define the attributes or fields which product should have example I want to have an ID and now ID in turn defined with an object where I configured this attribute). product has other attributes title', 'price', 'imageUrl', 'description'.
+'product' table need to be created by using sequelize in app.js file
+All models are transferred into tables or get a table that belongs to them whenever we start our application.
+
+
+In app.js we add extra the following code where synce will create the table ( syncs your models ( here 'product'  as above )  to database by creating the appropriate tables ). So below 'sync' is called and then listen to result
+
+
+const sequelize = require("./util/database");
+
+sequelize
+  .sync()
+  .then((result) => { })
+  .catch((err) => console.log(err));
+
+
+
+
+In controllers/admin.js  we edit the code for postAddProduct
+
+
+exports.postAddProduct = (req, res, next) => {
+  const title = req.body.title;
+  const imageUrl = req.body.imageUrl;
+  const price = req.body.price;
+  const description = req.body.description;
+  Product.create({
+    title: title,
+    price: price,
+    imageUrl: imageUrl,
+    description: description,
+  })
+    .then((result) => {
+      console.log("Created Product");
+      res.redirect("/admin/products");
+    })
+    .catch((err) => console.log(err));
+};
+
+
+exports.getProducts = (req, res, next) => {
+  Product.findAll()
+    .then((product) =>
+      res.render("admin/products", {
+        prods: product,
+        path: "/admin/products",
+        pageTitle: "Admin Products",
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+
+create creates a new element based on the model and immediately saves it to database, sequelize deals with promises hence we add 'then' and 'catch'
+
+  
+Product.create({
+    title: title,
+    price: price,
+    imageUrl: imageUrl,
+    description: description,
+  }).then((result) => console.log("Created Product"))
+    .catch((err) => console.log(err));
+
+
+
+
+ note:
+
+With Sequelize v5, findById() (which we'll use in this course) was replaced by findByPk().
+
+You use it in the same way, so you can simply replace all occurrences of findById() with findByPk()
+
+
+
+controllers/shop.js
+
+exports.getProducts = (req, res, next) => {
+  Product.findAll()
+    .then((products) =>
+      res.render("shop/product-list", {
+        prods: products,
+        pageTitle: "All Prodcuts",
+        path: "/products",
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findByPk(prodId)
+    .then((product) => {
+      res.render("shop/product-detail", {
+        product: product,
+        path: "/products",
+        pageTitle: product.title,
+      });
+    })
+    .catch();
+};
+
+exports.getIndex = (req, res, next) => {
+  Product.findAll({where:}).then(products =>  res.render("shop/index", {
+      prods: products,
+      pageTitle: "Shop",
+      path: "/",
+    })).catch(err => console.log(err))
+};
+
+
+'getProduct' in above code can be also done as follows
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findAll({
+    where: {
+      id: prodId,
+    },
+  })
+    .then((products) =>
+      res.render("shop/product-detail", {
+        product: products[0],
+        path: "/products",
+        pageTitle: products.title,
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+in 'where' we pass the value we need to retrieve that is 'id' were 'prodId' we get from params.
+
+
+
+controllers/admin.js
+
+exports.getEditProduct = (req, res, next) => {
+  const editMode = req.query.edit;
+  if (!editMode) {
+    return res.redirect("/");
+  }
+  const prodId = req.params.productId;
+  Product.findByPk(prodId)
+    .then((product) => {
+      if (!product) {
+        return res.redirect("/");
+      }
+      res.render("admin/edit-product", {
+        path: "admin/edit-product",
+        pageTitle: "Edit Product",
+        editing: editMode,
+        product: product,
+      });
+    })
+    .catch((err) => console.log(err));
+};
+
+
+exports.postEditProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  const updatedTitle = req.body.title;
+  const updatedImageUrl = req.body.imageUrl;
+  const updatedPrice = req.body.price;
+  const updatedDescription = req.body.description;
+  Product.findByPk(prodId)
+    .then((product) => {
+      product.title = updatedTitle;
+      product.price = updatedPrice;
+      product.imageUrl = updatedImageUrl;
+      product.description = updatedDescription;
+      return product.save();
+    })
+    .then((result) => res.redirect("/admin/products"))
+    .catch((err) => console.log(err));
+  res.redirect("/admin/products");
+};
+
+
+
+
+
+
+Add model/user.js
+
+
+
+const Sequelize = require("sequelize");
+const sequelize = require("../util/database");
+
+const User = sequelize.define("user", {
+  id: {
+    type: Sequelize.INTEGER,
+    autoIncrement: true,
+    allowNull: false,
+    primaryKey: true,
+  },
+  name: Sequelize.STRING,
+  email: Sequelize.STRING,
+});
+
+module.exports = User;
+
+
+
+
+
+
+In the 'sequelize.define' the first argument is the model name here its 'user' and the second argument is the structure of the model. 
+
+
+
+
+Adding one to many relationship
+
+Association can also be called relation. In this project we have Product, User, Cart and Order. The Product will belong to many carts because users will have carts therefore we have multiple Users, multiple Carts and therefore Product belong to many carts because different users can add the same product to their carts. User will have only one cart, product can be part of multiple Orders because order more than one thing. A user can own multiple products, that this user created this product.
+
+In app.js import Product and User from model folder.
+
+const Product = require("./models/product");
+const User = require("./models/user");
+
+Product.belongsTo(User, { constraints: true, onDelete: "CASCADE" });
+User.hasMany(Product);
+
+Then we can relate Product and User. The second argument to 'Product.belongsTo' is we can set constraints to true, when there is CASCADE deletion ( of onDelete property) of Product would be executed for Product. When the user is deleted then the Product will also be gone.
+
+User belong to belong to more than one Product 'User.hasMany(Product);'. Sequelize.sync will not only creates table but also relates/associates the tables. In 'sequelize.sync({ force: true })' we set 'force' to true because since the Product table is already created to override the already existing table.
+
+
+app.js
+
+
+const path = require("path");
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const bodyParser = require("body-parser");
+const express = require("express");
+
+const sequelize = require("./util/database");
+
+const Product = require("./models/product");
+
+const User = require("./models/user");
+
+
+const errorController = require("./controllers/error");
+
+const app = express();
+
+app.set("views", "views");
+
+app.use(bodyParser.urlencoded({ extended: false }));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use("/admin", adminRoutes);
+
+app.use(shopRoutes);
+
+app.use(errorController.pageNotFound);
+
+Product.belongsTo(User, { constraints: true, onDelete: "CASCADE" });
+User.hasMany(Product);
+
+sequelize
+  .sync({ force: true })
+  .then((result) => {})
+  .catch((err) => console.log(err));
+app.listen(3000);
+
+
+
+Creating and Managing a Dummy User
+
+
+
+sequelize
+  .sync()
+  .then((result) => {
+    return User.findByPk(1);
+  })
+  .then(user => {
+      if (!user) {
+      return User.create({
+        name: "Anna",
+        email: "anna@example.com",
+      });
+    }
+    return user;
+  })
+ .then((user) => {
+    console.log(user);
+    app.listen(3000);
+  })
+  .catch((err) => console.log(err));
+
+
+The User.findByPk(1)' is to find the user with id = 1
+
+the 'then' after that which has 'user' is used to retrieve the user  and in this 'then' block we check if user doesn't exist then we will create a new User by 'create' function. If user exists then return the user.
+
+Adding a middleware in app.js for reaching out to database and retrieve the user for id =1 and place it in req.user, app use here only registers a middleware so for incoming request we will then execute this function. So 'npm start' executes the 'sequelize.sync()'. The middleware is executed if the 'app.listen(3000);' will port is listen to 3000.
+
+app.use((req, res, next) => {
+  User.findByPk(1)
+    .then((user) => {
+      req.user = user;
+      next();
+    })
+    .catch((err) => console.log(er));
+});
+
+
+
+app.js
+
+
+const path = require("path");
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const bodyParser = require("body-parser");
+const express = require("express");
+
+const sequelize = require("./util/database");
+
+const Product = require("./models/product");
+
+const User = require("./models/user");
+
+const errorController = require("./controllers/error");
+
+const app = express();
+app.set("view engine", "ejs");
+
+app.set("views", "views");
+
+app.use(bodyParser.urlencoded({ extended: false }));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use((req, res, next) => {
+  User.findByPk(1)
+    .then((user) => {
+      req.user = user;
+      next();
+    })
+    .catch((err) => console.log(er));
+});
+
+app.use("/admin", adminRoutes);
+
+app.use(shopRoutes);
+
+app.use(errorController.pageNotFound);
+
+Product.belongsTo(User, { constraints: true, onDelete: "CASCADE" });
+User.hasMany(Product);
+
+sequelize
+  .sync()
+  .then((result) => {
+    return User.findByPk(1);
+  })
+  .then((user) => {
+    if (!user) {
+      return User.create({
+        name: "Anna",
+        email: "anna@example.com",
+      });
+    }
+    return user;
+  })
+  .then((user) => {
+    console.log(user);
+    app.listen(3000);
+  })
+  .catch((err) => console.log(err));
+
+
+
+
+
+controllers/admin.js
+
+
+exports.postAddProduct = (req, res, next) => {
+  const title = req.body.title;
+  const imageUrl = req.body.imageUrl;
+  const price = req.body.price;
+  const description = req.body.description;
+  Product.create({
+    title: title,
+    price: price,
+    imageUrl: imageUrl,
+    description: description,
+    userId: req.user.id,
+  })
+    .then((result) => {
+      console.log("Created Product");
+      res.redirect("/admin/products");
+    })
+    .catch((err) => console.log(err));
+};
+
+
+
+Here 'userId: req.user.id' , req.user denotes the sequelize object which we get from database. So when we add a new product we add userid in "product' table. Instead of this we can add createProduct() method shown below. (since using this 'Product.belongsTo(User, { constraints: true, onDelete: "CASCADE" });User.hasMany(Product);'
+
+
+  req.user
+    .createProduct({
+      title: title,
+      price: price,
+      imageUrl: imageUrl,
+      description: description,
+    })
+
+
+controllers/admin.js
+
+
+exports.postAddProduct = (req, res, next) => {
+  const title = req.body.title;
+  const imageUrl = req.body.imageUrl;
+  const price = req.body.price;
+  const description = req.body.description;
+  req.user
+    .createProduct({
+      title: title,
+      price: price,
+      imageUrl: imageUrl,
+      description: description,
+    })
+    .then((result) => {
+      console.log("Created Product");
+      res.redirect("/admin/products");
+    })
+    .catch((err) => console.log(err));
+};
+
+
+'  req.user.getProducts({ where: { id: prodId } });' in getEditProduct, instead of this 'Product.findByPk(prodId)' in admin/controllers. 'getProducts' returns an array
+
+
+admin/controllers
+
+exports.getEditProduct = (req, res, next) => {
+  const editMode = req.query.edit;
+  if (!editMode) {
+    return res.redirect("/");
+  }
+  const prodId = req.params.productId;
+  req.user
+    .getProducts({ where: { id: prodId } })
+      .then((products) => {
+      const product = products[0];
+      if (!product) {
+        return res.redirect("/");
+      }
+      res.render("admin/edit-product", {
+        path: "admin/edit-product",
+        pageTitle: "Edit Product",
+        editing: editMode,
+        product: product,
+      });
+    })
+    .catch((err) => console.log(err));
+};
+
+
+In getproducts controller in controllers/admin.js, we 'Product.findAll()' replaced with '  req.user.getProducts()'
+
+controllers/admin.js
+
+
+exports.getProducts = (req, res, next) => {
+  req.user
+    .getProducts()
+    .then((product) =>
+      res.render("admin/products", {
+        prods: product,
+        path: "/admin/products",
+        pageTitle: "Admin Products",
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+NoSQL Database / MongoDB
+
+MongoDB is a database engine to run NoSQL Databases. Can store lots of data, interact with data , so build for large scale applications.
+
+How MongoDB works
+
+There is mongodb server and we have multiple databases. For example shop database. In such a Database in the SQL world we have multiple tables, but in NoSQL we have muliple collections like users and orders collection for example. In each collections we have a couple of documents. MongoDB is schemaless, inside one collection the documents which is data need not have to have same structure. Documents any kind of data in one and same collection. (eg:-  {name:"Bini", age:20}, {name:"Anna"}. This gives more flexibility for the application to grow and change its data requirements over time without changing the database. Document in MongoDb looks like this:-
+
+{
+"name" : "Bini",
+"age": 20,
+"address": 
+	{
+	 "city": "London"
+	},
+"hobbies": [
+            {"name" : "Cooking"},
+            {"name" : "Sports"}
+           ]
+}
+
+
+MongoDB uses JSON to store data in collections. So ever document we store data looks like above. Documents can have array, other objects, strings, numbers or other documents. In collections we can have duplicate data. Part of data in one document can be nested in another document. Embedding data from one collection's document to another collection's document. Embed the ID which points to another document. Eg:- user data for the orders and copy that into the orders and then the data right where you fetch all orders without fetching all orders. NoSQL ensure to query data in format you need, that store in the format you need it, so need not have to merging data but fetch data in format you need it without having to combine multiple collections behind the server. 
+Showing relations in collections are nested/embedded documents and references 
+
+nested/embedded document example of 'Customers' collection:-
+
+
+{
+"userName" : "Bini",
+"age": 20,
+"address": 
+	{
+	 "city": "Scarborough",
+	 "street": "1142 Brimley Road"
+	}
+}
+
+
+'address' is a part of 'Customers' document instead of having 2 collections 'Customers' and 'Addresses' and matching by ID here we put the address right to customer.
+
+
+References 
+
+If Duplicate data is to be handled we have references. eg:- if you have some favorite books for every customer, there is a possibility that there is a lot of data duplication because a lot of customers might have same favorite books and these books might change a lot by new edition published and you should have to go to all customers who have these books as favorites and update the entries for each customer. in such a scenario, go with 2 collections and only store the references to the books in a customers document and manually merge that with the books which is managed in different collections.
+
+
+Customers document:-
+
+{
+"userName" : "Bini",
+"favBooks": ["id1", "id2"]
+}
+
+
+Book document :-
+
+{
+  id: "id1",
+  name: "Lord of the rings"
+}
+
+
+
+
+
+
+
+
+MongoDb
+
+
+
+
+npm i --save mongodb
+
+
+
+
+util/database.js
+
+
+const mongodb = require('mongodb');
+const MongoClient = mongodb.MongoClient;
+let _db;
+const mongoConnect = (callback) => {
+MongoClient.connect().then(client=> {console.log("Connected");
+    _db = client.db()
+    callback()
+}).catch(err => {console.log(err)
+    throw err;
+}); ////here provide username and password from mongodb in connect
+}
+
+const getDb = () =>{
+    if(_db){
+        return _db;
+    }
+    throw "No database found"
+}
+
+exports.mongoConnect = mongoConnect;
+exports.getDb = getDb;
+
+
+
+app.js
+
+
+const path = require("path");
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const bodyParser = require("body-parser");
+const express = require("express");
+// const expresshbs = require("express-handlebars");
+
+const mongoConnect = require('./util/database')
+
+const errorController = require("./controllers/error");
+
+const app = express();
+app.set("view engine", "ejs");
+// app.engine(
+//   "handlebars",
+//   expresshbs({
+//     layoutsDir: "views/layouts/",
+//     defaultLayout: "main-layout",
+//     extname: ".handlebars",
+//   })
+// );
+// app.set("view engine", "handlebars");
+// app.set("view engine", "pug");
+app.set("views", "views");
+
+app.use(bodyParser.urlencoded({ extended: false }));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use("/admin", adminRoutes);
+
+app.use(shopRoutes);
+
+app.use(errorController.pageNotFound);
+// app.listen(3000);
+
+mongoConnect(() =>{    
+    app.listen(3000)
+})
+
+
+
+
+
+
+
+models/product.js
+
+
+
+const getDb = require('../util/database').getDb;
+
+
+class Product{
+  constructor(title, price, description, imageUrl){
+    this.title = title;
+    this.price = price;
+    this.description = description;
+    this.imageUrl = imageUrl;
+  }
+
+  save(){
+   const db = getDb();
+   db.collection('products').insertOne(this).then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+}
+module.exports = Product;
+
+
+
+
+
+
+'db.collection('products').insertOne({name: 'A book', price: 12.99})' create a collection named 'products' and insert one using 'insertOne' and inserts here an object '{name: 'A book', price: 12.99}'. Here 'name' and'price' is a javascript object and will be converted by Mongodb.
+'db.collection('products').insertOne(this).then().catch()' here 'this' denotes to constructor value used inside 'Product' class i.e title, price, description, imageUrl.
+
+
+
+
+app.js
+
+const path = require("path");
+const adminRoutes = require("./routes/admin");
+const shopRoutes = require("./routes/shop");
+const bodyParser = require("body-parser");
+const express = require("express");
+// const expresshbs = require("express-handlebars");
+
+const {mongoConnect} = require('./util/database').mongoConnect
+
+const errorController = require("./controllers/error");
+
+const app = express();
+app.set("view engine", "ejs");
+
+app.set("views", "views");
+
+app.use(bodyParser.urlencoded({ extended: false }));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+// app.use("/admin", adminRoutes);
+
+// app.use(shopRoutes);
+
+app.use(errorController.pageNotFound);
+// app.listen(3000);
+
+mongoConnect(() =>{    
+    app.listen(3000)
+})
+
+
+
+
+
+'const {mongoConnect} = require('./util/database').mongoConnect' dot is in the imports section in app.js
     
