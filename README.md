@@ -4967,3 +4967,227 @@ exports.getProducts = (req, res, next) => {
     .catch((err) => console.log(err));
 };
     
+
+
+
+
+Edit product and delete product by Mongodb
+
+controllers/admin.js
+
+exports.getEditProduct = (req, res, next) => {
+  const editMode = req.query.edit;
+  if (!editMode) {
+    return res.redirect("/");
+  }
+  const prodId = req.params.productId;
+  Product.findById(prodId)
+    .then((product) => {
+      if (!product) {
+        return res.redirect("/");
+      }
+      res.render("admin/edit-product", {
+        path: "admin/edit-product",
+        pageTitle: "Edit Product",
+        editing: editMode,
+        product: product,
+      });
+    })
+    .catch((err) => console.log(err));
+};
+
+
+
+In views/admin/edit-product.ejs 'id' changed to '_id'
+
+In models/product.js add id in the constructor
+
+'updateOne()' will update one item, in 'updateOne()' we pass an object on which item to update, second argument to 'updateOne()' is to tell what all updation should takes place with a key '$set' 
+
+
+
+models/product.js
+
+  save(){
+       const db = getDb();
+       let dbOp;
+    if(this._id){
+      //update the product
+        dbOp =  db.collection('products').updateOne({_id: new mongodb.ObjectId(this._id)}, {$set: this});
+    }
+    else{
+      //otherwise we will insert it
+     dbOp =  db.collection('products').insertOne(this);
+    }
+
+  return dbOp.then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+
+
+
+
+
+full models/product.js
+
+
+const getDb = require('../util/database').getDb;
+const mongodb = require('mongodb')
+
+class Product{
+  constructor(title, price, description, imageUrl, id){
+    this.title = title;
+    this.price = price;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this._id = id;
+  }
+
+  save(){
+       const db = getDb();
+       let dbOp;
+    if(this._id){
+      //update the product
+        dbOp =  db.collection('products').updateOne({_id: new mongodb.ObjectId(this._id)}, {$set: this});
+    }
+    else{
+      //otherwise we will insert it
+     dbOp =  db.collection('products').insertOne(this);
+    }
+
+  return dbOp.then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+
+  static fetchAll(){
+       const db = getDb();
+    return db.collection('products').find().toArray().then(products => {console.log(products)
+      return products
+    }).catch(err=> console.log(err));
+  }
+
+  static findById(prodId){
+    const db = getDb();
+    return db.collection('products').find({_id: new mongodb.ObjectId(prodId) }).next().then(product => {
+      console.log(product);
+      return product;
+    }).catch(err=> console.log(err))
+  }
+}
+module.exports = Product;
+
+
+
+
+
+
+
+
+controllers/admin.js
+
+const Product = require("../models/product");
+const mongodb = require('mongodb')
+var ObjectId = mongodb.ObjectId;
+
+exports.postEditProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  const updatedTitle = req.body.title;
+  const updatedImageUrl = req.body.imageUrl;
+  const updatedPrice = req.body.price;
+  const updatedDescription = req.body.description;
+  const product = new Product(updatedTitle, updatedPrice, updatedDescription, updatedImageUrl, new ObjectId(prodId))
+  
+    product.save().then((result) => {
+     console.log("Updated product");
+     res.redirect('/admin/products')
+    })
+    .catch((err) => console.log(err));
+};
+
+
+
+to delete product from mongodb
+
+models/product.js
+
+
+static deleteById(prodId){
+    const db = getDb();
+    return db.collection('products').deleteOne({_id: new mongodb.ObjectId(prodId)}).then((result)=> console.log("Deleted")).catch(err=> console.log(err))
+  }
+
+
+Full models/product.js
+
+
+const getDb = require('../util/database').getDb;
+const mongodb = require('mongodb')
+
+class Product{
+  constructor(title, price, description, imageUrl, id){
+    this.title = title;
+    this.price = price;
+    this.description = description;
+    this.imageUrl = imageUrl;
+    this._id = id;
+  }
+
+  save(){
+       const db = getDb();
+       let dbOp;
+    if(this._id){
+      //update the product
+        dbOp =  db.collection('products').updateOne({_id: new mongodb.ObjectId(this._id)}, {$set: this});
+    }
+    else{
+      //otherwise we will insert it
+     dbOp =  db.collection('products').insertOne(this);
+    }
+
+  return dbOp.then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+
+  static fetchAll(){
+       const db = getDb();
+    return db.collection('products').find().toArray().then(products => {console.log(products)
+      return products
+    }).catch(err=> console.log(err));
+  }
+
+  static findById(prodId){
+    const db = getDb();
+    return db.collection('products').find({_id: new mongodb.ObjectId(prodId) }).next().then(product => {
+      console.log(product);
+      return product;
+    }).catch(err=> console.log(err))
+  }
+
+  static deleteById(prodId){
+    const db = getDb();
+    return db.collection('products').deleteOne({_id: new mongodb.ObjectId(prodId)}).then((result)=> console.log("Deleted")).catch(err=> console.log(err))
+  }
+}
+module.exports = Product;
+
+
+
+
+controllers/admin.js
+
+
+exports.postDeleteProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.deleteById(prodId)
+    .then((product) => {
+      console.log("Product deleted");
+      res.redirect('/admin/products')
+    })
+    .then((result) => {
+      res.redirect("/admin/products");
+    })
+    .catch((err) => console.log(err));
+};
