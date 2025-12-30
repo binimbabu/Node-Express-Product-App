@@ -4733,4 +4733,237 @@ mongoConnect(() =>{
 
 
 'const {mongoConnect} = require('./util/database').mongoConnect' dot is in the imports section in app.js
+
+
+
+
+
+Adding Product using Mongodb
+
+
+controllers/admin.js
+
+
+exports.postAddProduct = (req, res, next) => {
+  const title = req.body.title;
+  const imageUrl = req.body.imageUrl;
+  const price = req.body.price;
+  const description = req.body.description;
+  const product = new Product(title, price, description, imageUrl)
+  product.save().then((result)=>{
+
+  })
+  .catch((err)=>console.log(err))
+ };
+
+
+
+
+routes/admin.js
+
+router.post("/add-product", adminController.postAddProduct);
+
+
+
+
+
+Connect mongodb atlas to mongodbconnect
+
+
+create a connection with the following url:-
+
+
+mongodb+srv://bbabu_db_user:binimongodb@udemycluster.r5yz9bv.mongodb.net/
+
+
+In models/product.js to get all the products we use the db collection to choose 'products' collection and use method 'find() to retrieve all documents from 'products' collections. There is an array method (i.e toArray() ) to execute to tell mongodb to get all documents and transform it to array. 'toArray()' is used if there is more than one documents.
+
+
+
+models/product.js
+
+  static fetchAll(){
+    const db = getDb();
+    return db.collection('products').find().toArray().then(products => {console.log(products)
+      return products;
+    }).catch(err=> console.log(err));
+  }
+
+
+
+full code models/product.js
+
+
+
+const getDb = require('../util/database').getDb;
+
+
+class Product{
+  constructor(title, price, description, imageUrl){
+    this.title = title;
+    this.price = price;
+    this.description = description;
+    this.imageUrl = imageUrl;
+  }
+
+  save(){
+   const db = getDb();
+  return db.collection('products').insertOne(this).then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+
+  static fetchAll(){
+       const db = getDb();
+    return db.collection('products').find().toArray().then(products => {console.log(products)
+      return products
+    }).catch(err=> console.log(err));
+  }
+}
+module.exports = Product;
+
+
+
+
+
+controllers/shop.js
+
+
+exports.getProducts = (req, res, next) => {
+  Product.fetchAll()
+    .then((products) =>
+      res.render("shop/product-list", {
+        prods: products,
+        pageTitle: "All Prodcuts",
+        path: "/products",
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+exports.getIndex = (req, res, next) => {
+  Product.fetchAll()
+    .then((products) =>
+      res.render("shop/index", {
+        prods: products,
+        pageTitle: "Shop",
+        path: "/",
+      })
+    )
+    .catch((err) => console.log(err));
+};
+
+
+call the 'fetchAll' from Product class in models/product.js
+
+
+
+routes/shop.js
+
+
+router.get("/", shopController.getIndex);
+
+router.get("/products", shopController.getProducts);
+
+
+
+To fetch product with id as 'prodId' we can do the following in models/product.js. next() gets the last document that was returned in find method with '_id' as 'prodId'. ' new mongodb.ObjectId(prodId)' because in mongodb database we are storing '_id' as ObjectId hence we have to pass 'prodId' like this.
+
+models/product.js
+ 
+
+static findById(prodId){
+    const db = getDb();
+    return db.collection('products').find({_id:  new mongodb.ObjectId(prodId)}).next().then(product => {
+      console.log(product);
+      return product;
+    }).catch(err=> console.log(err))
+  }
+
+
+
+Full code models/product.js
+
+
+const getDb = require('../util/database').getDb;
+
+
+class Product{
+  constructor(title, price, description, imageUrl){
+    this.title = title;
+    this.price = price;
+    this.description = description;
+    this.imageUrl = imageUrl;
+  }
+
+  save(){
+   const db = getDb();
+  return db.collection('products').insertOne(this).then(result => console.log(result)).catch(err=>{
+    console.log(err)
+   })
+  }
+
+  static fetchAll(){
+       const db = getDb();
+    return db.collection('products').find().toArray().then(products => {console.log(products)
+      return products
+    }).catch(err=> console.log(err));
+  }
+
+  static findById(prodId){
+    const db = getDb();
+    return db.collection('products').find({_id:  new mongodb.ObjectId(prodId)}).next().then(product => {
+      console.log(product);
+      return product;
+    }).catch(err=> console.log(err))
+  }
+}
+module.exports = Product;
+
+
+
+
+
+routes/shop.js
+
+
+router.get("/products/:productId", shopController.getProduct);
+
+
+In views/product-list.ejs, admin/product.ejs and views/product-detail.ejs replace id with _id
+
+
+
+
+controller/shop.js
+
+
+exports.getProduct = (req, res, next) => {
+  const prodId = req.params.productId;
+  Product.findById(prodId)
+    .then((product) => {
+      res.render("shop/product-detail", {
+        product: product,
+        path: "/products",
+        pageTitle: product.title,
+      });
+    })
+    .catch();
+};
+
+
+
+controllers/admin.js
+
+exports.getProducts = (req, res, next) => {
+ Product.fetchAll()
+    .then((product) =>
+      res.render("admin/products", {
+        prods: product,
+        path: "/admin/products",
+        pageTitle: "Admin Products",
+      })
+    )
+    .catch((err) => console.log(err));
+};
     
